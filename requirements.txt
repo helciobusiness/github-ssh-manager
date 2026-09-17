@@ -1,0 +1,5 @@
+# GitHub SSH Manager requires no external third-party dependencies.
+# The application runs entirely on Python 3.10+ standard library.
+#
+# Optional development and testing dependencies:
+# pytest>=8.0.0

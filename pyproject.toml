@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=61.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "github-ssh-manager"
+version = "1.0.0"
+description = "A production-grade Windows CLI tool for managing multiple GitHub accounts with distinct SSH keys."
+readme = "README.md"
+authors = [
+    { name = "Helcio Business" }
+]
+license = { text = "MIT" }
+requires-python = ">=3.10"
+keywords = ["ssh", "github", "windows", "cli", "ssh-config", "ed25519"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Software Development :: Version Control :: Git",
+    "Topic :: System :: Systems Administration",
+]
+dependencies = []
+
+[project.scripts]
+github-ssh-manager = "github_ssh_manager.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
