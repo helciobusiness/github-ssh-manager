@@ -50,6 +50,19 @@ class TestCLI(unittest.TestCase):
         self.assertEqual(args.account, "github-testuser")
         self.assertEqual(args.repo, "user/repo")
 
+        args = parser.parse_args([
+            "clone",
+            "git@github.com:af979031-cloud/kumbify.git",
+            "--account",
+            "github-testuser",
+            "--dest",
+            "./target",
+        ])
+        self.assertEqual(args.subcommand, "clone")
+        self.assertEqual(args.repo, "git@github.com:af979031-cloud/kumbify.git")
+        self.assertEqual(args.account, "github-testuser")
+        self.assertEqual(args.dest, "./target")
+
         args = parser.parse_args(["--dry-run", "remove", "github-testuser", "--yes"])
         self.assertTrue(args.dry_run)
         self.assertEqual(args.subcommand, "remove")
@@ -60,6 +73,15 @@ class TestCLI(unittest.TestCase):
         accounts = cli.config_mgr.list_accounts()
         self.assertEqual(len(accounts), 1)
         self.assertEqual(accounts[0].alias, "github-testuser")
+
+    def test_cli_dry_run_clone(self) -> None:
+        cli = GitHubSSHManagerCLI(ssh_dir=self.ssh_dir, dry_run=True)
+        ok = cli.clone_repository(
+            account_or_id="github-testuser",
+            repo_input="git@github.com:af979031-cloud/kumbify.git",
+            dest_input=str(self.ssh_dir / "kumbify"),
+        )
+        self.assertTrue(ok)
 
     def test_cli_dry_run_remove(self) -> None:
         cli = GitHubSSHManagerCLI(ssh_dir=self.ssh_dir, dry_run=True)

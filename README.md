@@ -129,12 +129,13 @@ Main Menu
 4. Test all accounts
 5. Show public key
 6. Show SSH configuration
-7. Generate Git clone URL
-8. Inspect SSH Agent
-9. Remove account
+7. Clone repository
+8. Generate Git clone URL
+9. Inspect SSH Agent
+10. Remove account
 0. Exit
 ===================================
-Choose an option (0-9):
+Choose an option (0-10):
 ```
 
 ---
@@ -168,10 +169,35 @@ Choose an option (0-9):
      [INFO] Testing SSH authentication for 'github-opgests' (ssh -T git@github-opgests)...
      [OK] Successfully authenticated as GitHub user: 'opgests'!
      ```
+8. **Direct Clone (Optional):**
+   - The wizard will prompt: `Do you want to clone a repository with this account now? (y/N): `
+   - If yes, you can immediately paste a repository link and select where to download it!
 
 ---
 
-### 3. CLI Subcommands
+### 3. Direct Repository Cloning & Custom Destinations
+
+You can clone repositories directly using any configured account, pasting standard GitHub links:
+
+```powershell
+# Interactive cloning wizard:
+python -m github_ssh_manager clone git@github.com:af979031-cloud/kumbify.git
+
+# Or with account and custom destination flags:
+python -m github_ssh_manager clone git@github.com:af979031-cloud/kumbify.git --account github-helciobusiness --dest "C:\Users\helci\Documents\Projects"
+```
+
+**Supported URL formats:**
+- SSH URLs: `git@github.com:af979031-cloud/kumbify.git` or `git@github.com:owner/repo`
+- HTTPS URLs: `https://github.com/af979031-cloud/kumbify.git` or `https://github.com/owner/repo`
+- SSH Protocol: `ssh://git@github.com/af979031-cloud/kumbify.git`
+- Slugs: `af979031-cloud/kumbify`
+
+The tool automatically rewrites the connection to use the chosen account's SSH alias (`git@github-<alias>:af979031-cloud/kumbify.git`) and prompts where to download the project on your machine.
+
+---
+
+### 4. CLI Subcommands
 
 For power users and automated scripts:
 
@@ -184,6 +210,7 @@ For power users and automated scripts:
 | `test-all` | Test all configured accounts sequentially | `python -m github_ssh_manager test-all` |
 | `public-key <account>` | Display public key and fingerprint | `python -m github_ssh_manager public-key github-opgests --copy` |
 | `config` | Display current `~/.ssh/config` content | `python -m github_ssh_manager config` |
+| `clone <url>` | Clone a repository with an SSH alias to a chosen destination | `python -m github_ssh_manager clone git@github.com:af979031-cloud/kumbify.git` |
 | `clone-url <account> <repo>` | Generate exact Git clone command | `python -m github_ssh_manager clone-url github-opgests opgests/app` |
 | `agent` | Inspect Windows `ssh-agent` service | `python -m github_ssh_manager agent` |
 | `remove <account>` | Safely remove account and optionally delete keys | `python -m github_ssh_manager remove github-opgests` |

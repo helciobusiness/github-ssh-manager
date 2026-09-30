@@ -23,8 +23,12 @@ from github_ssh_manager.models import Account, EnvironmentInfo
 from github_ssh_manager.ssh_manager import SSHManager
 from github_ssh_manager.utils import (
     Formatter,
+    configure_repo_identity,
     copy_to_clipboard,
     get_default_ssh_dir,
+    parse_github_repo,
+    resolve_clone_destination,
+    run_git_clone,
     validate_email,
     validate_identifier,
 )
@@ -231,6 +235,11 @@ class GitHubSSHManagerCLI:
         print("3. Paste your public key into the 'Key' box and click 'Add SSH key'")
         print("4. Test authentication using menu option 3 (or CLI: test " + identifier + ")")
 
+        # 9. Optional direct repository clone
+        clone_now = input("\nDo you want to clone a repository with this account now? (y/N): ").strip().lower()
+        if clone_now in ("y", "yes"):
+            self.clone_repository(account_or_id=account.alias)
+
     def list_accounts(self, run_tests: bool = False) -> None:
         """List configured GitHub accounts in a clean table format."""
         accounts = self.config_mgr.list_accounts()
@@ -381,6 +390,104 @@ class GitHubSSHManagerCLI:
         else:
             print(raw)
         print("=" * 60)
+
+    def clone_repository(
+        self,
+        account_or_id: Optional[str] = None,
+        repo_input: Optional[str] = None,
+        dest_input: Optional[str] = None,
+    ) -> bool:
+        """Clone a GitHub repository using an account SSH alias to a chosen destination."""
+        account = self._resolve_account(account_or_id)
+        if not account:
+            return False
+
+        if not repo_input:
+            print("\nEnter repository link or path:")
+            print("Examples:")
+            print("  - git@github.com:af979031-cloud/kumbify.git")
+            print("  - https://github.com/af979031-cloud/kumbify")
+            print("  - af979031-cloud/kumbify")
+            repo_input = input("Repository: ").strip()
+            if not repo_input:
+                print(Formatter.error("Repository name or URL cannot be empty."))
+                return False
+
+        try:
+            full_repo, default_repo_name = parse_github_repo(repo_input)
+        except ValueError as err:
+            print(Formatter.error(str(err)))
+            return False
+
+        clone_url = account.clone_url(full_repo)
+
+        if dest_input is None:
+            default_dest_display = f".\\{default_repo_name}"
+            print(f"\nTarget download location [default: {default_dest_display}]:")
+            user_dest = input("> ").strip()
+            target_dest = resolve_clone_destination(user_dest, default_repo_name)
+        else:
+            target_dest = resolve_clone_destination(dest_input, default_repo_name)
+
+        print("\n" + "=" * 60)
+        print("CLONE REPOSITORY")
+        print("=" * 60)
+        print(f"Account:     {account.alias}")
+        print(f"Repository:  {full_repo}")
+        print(f"SSH URL:     {clone_url}")
+        print(f"Destination: {target_dest}")
+        print("=" * 60)
+
+        if self.dry_run:
+            print(Formatter.info(f"[DRY RUN] Would execute: git clone {clone_url} {target_dest}"))
+            return True
+
+        print(Formatter.info(f"Cloning repository into '{target_dest}'..."))
+        success, msg = run_git_clone(clone_url, target_dest, dry_run=False)
+
+        if not success:
+            print(Formatter.error(f"Clone failed: {msg}"))
+            print(
+                Formatter.warning(
+                    "Troubleshooting tips:\n"
+                    "  1. Verify if the repository exists and is accessible.\n"
+                    f"  2. Check if your account '{account.alias}' has read permission.\n"
+                    f"  3. Test your SSH connection with: python -m github_ssh_manager test {account.alias}"
+                )
+            )
+            return False
+
+        print(Formatter.ok(f"Repository cloned successfully into: {target_dest}"))
+
+        # Offer to configure local repository Git identity
+        configure_id = (
+            input("\nDo you want to configure Git author identity for this cloned repo? (Y/n): ")
+            .strip()
+            .lower()
+        )
+        if configure_id in ("", "y", "yes"):
+            author_name = input(f"Git author name [default: {account.identifier}]: ").strip()
+            if not author_name:
+                author_name = account.identifier
+
+            default_email = account.email or ""
+            email_prompt = (
+                f"Git author email [default: {default_email}]: "
+                if default_email
+                else "Git author email: "
+            )
+            author_email = input(email_prompt).strip()
+            if not author_email and default_email:
+                author_email = default_email
+
+            if author_name and author_email:
+                ok, id_msg = configure_repo_identity(target_dest, author_name, author_email)
+                if ok:
+                    print(Formatter.ok(f"Local Git identity configured: {author_name} <{author_email}>"))
+                else:
+                    print(Formatter.warning(f"Could not configure Git identity: {id_msg}"))
+
+        return True
 
     def generate_clone_url(
         self, alias_or_id: Optional[str] = None, repo: Optional[str] = None
@@ -537,14 +644,15 @@ class GitHubSSHManagerCLI:
             print("4. Test all accounts")
             print("5. Show public key")
             print("6. Show SSH configuration")
-            print("7. Generate Git clone URL")
-            print("8. Inspect SSH Agent")
-            print("9. Remove account")
+            print("7. Clone repository")
+            print("8. Generate Git clone URL")
+            print("9. Inspect SSH Agent")
+            print("10. Remove account")
             print("0. Exit")
             print("=" * 35)
 
             try:
-                choice = input("Choose an option (0-9): ").strip()
+                choice = input("Choose an option (0-10): ").strip()
             except (KeyboardInterrupt, EOFError):
                 print("\nGoodbye!")
                 break
@@ -562,16 +670,18 @@ class GitHubSSHManagerCLI:
             elif choice == "6":
                 self.show_ssh_config()
             elif choice == "7":
-                self.generate_clone_url()
+                self.clone_repository()
             elif choice == "8":
-                self.inspect_agent()
+                self.generate_clone_url()
             elif choice == "9":
+                self.inspect_agent()
+            elif choice == "10":
                 self.remove_account()
             elif choice in ("0", "exit", "q"):
                 print("Exiting GitHub SSH Manager. Goodbye!")
                 break
             else:
-                print(Formatter.warning("Invalid option. Please choose between 0 and 9."))
+                print(Formatter.warning("Invalid option. Please choose between 0 and 10."))
 
 
 # -------------------------------------------------------------------------
@@ -634,9 +744,15 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser("config", help="Display ~/.ssh/config")
 
     # clone-url
-    p_clone = subparsers.add_parser("clone-url", help="Generate Git clone URL using account alias")
-    p_clone.add_argument("account", nargs="?", help="Account alias or identifier")
-    p_clone.add_argument("repo", nargs="?", help="Repository (e.g. username/repo)")
+    p_clone_url = subparsers.add_parser("clone-url", help="Generate Git clone URL using account alias")
+    p_clone_url.add_argument("account", nargs="?", help="Account alias or identifier")
+    p_clone_url.add_argument("repo", nargs="?", help="Repository (e.g. username/repo)")
+
+    # clone
+    p_clone = subparsers.add_parser("clone", help="Clone a GitHub repository using an account SSH alias")
+    p_clone.add_argument("repo", help="Repository URL or owner/repo (e.g. git@github.com:af979031-cloud/kumbify.git)")
+    p_clone.add_argument("--account", help="Account alias or identifier to use for cloning")
+    p_clone.add_argument("--dest", help="Destination directory path on your machine")
 
     # agent
     subparsers.add_parser("agent", help="Inspect Windows ssh-agent")
@@ -702,6 +818,13 @@ def main(argv: Optional[List[str]] = None) -> int:
 
         elif args.subcommand == "clone-url":
             cli.generate_clone_url(args.account, args.repo)
+
+        elif args.subcommand == "clone":
+            cli.clone_repository(
+                account_or_id=args.account,
+                repo_input=args.repo,
+                dest_input=args.dest,
+            )
 
         elif args.subcommand == "agent":
             cli.inspect_agent()

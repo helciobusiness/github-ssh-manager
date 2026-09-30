@@ -44,24 +44,10 @@ class Account:
 
     def clone_url(self, repo: str) -> str:
         """Generate git clone URL using this account's SSH alias."""
-        cleaned_repo = repo.strip()
-        # Strip potential URL prefixes if user passed a full URL
-        if cleaned_repo.startswith("git@github.com:"):
-            cleaned_repo = cleaned_repo[len("git@github.com:") :]
-        elif cleaned_repo.startswith("https://github.com/"):
-            cleaned_repo = cleaned_repo[len("https://github.com/") :]
-        elif cleaned_repo.startswith("http://github.com/"):
-            cleaned_repo = cleaned_repo[len("http://github.com/") :]
+        from github_ssh_manager.utils import parse_github_repo
 
-        # Strip any existing alias prefix if someone pasted git@github-alias:...
-        if "@" in cleaned_repo and ":" in cleaned_repo:
-            cleaned_repo = cleaned_repo.split(":", 1)[1]
-
-        # Ensure .git suffix
-        if not cleaned_repo.endswith(".git"):
-            cleaned_repo = f"{cleaned_repo}.git"
-
-        return f"git@{self.alias}:{cleaned_repo}"
+        full_repo, _ = parse_github_repo(repo)
+        return f"git@{self.alias}:{full_repo}.git"
 
 
 @dataclass

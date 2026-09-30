@@ -53,6 +53,11 @@ class TestModels(unittest.TestCase):
             acct.clone_url("git@github.com:helcio/project.git"),
             "git@github-opgests:helcio/project.git",
         )
+        # Specific user example
+        self.assertEqual(
+            acct.clone_url("git@github.com:af979031-cloud/kumbify.git"),
+            "git@github-opgests:af979031-cloud/kumbify.git",
+        )
 
     def test_host_block_to_account(self) -> None:
         block = HostBlock(

@@ -7,11 +7,17 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 import tempfile
 import unittest
 
+from unittest.mock import MagicMock, patch
+
 from github_ssh_manager.exceptions import InvalidAccountIdentifierError
 from github_ssh_manager.utils import (
     Formatter,
+    configure_repo_identity,
     create_backup_file,
     get_default_ssh_dir,
+    parse_github_repo,
+    resolve_clone_destination,
+    run_git_clone,
     validate_email,
     validate_identifier,
 )
@@ -101,6 +107,70 @@ class TestUtils(unittest.TestCase):
             self.assertTrue(backup.exists())
             self.assertIn("config.bak.", backup.name)
             self.assertEqual(backup.read_text(encoding="utf-8"), orig.read_text(encoding="utf-8"))
+
+    def test_parse_github_repo(self) -> None:
+        test_cases = [
+            ("git@github.com:af979031-cloud/kumbify.git", ("af979031-cloud/kumbify", "kumbify")),
+            ("git@github.com:af979031-cloud/kumbify", ("af979031-cloud/kumbify", "kumbify")),
+            ("https://github.com/af979031-cloud/kumbify.git", ("af979031-cloud/kumbify", "kumbify")),
+            ("https://github.com/af979031-cloud/kumbify", ("af979031-cloud/kumbify", "kumbify")),
+            ("ssh://git@github.com/af979031-cloud/kumbify.git", ("af979031-cloud/kumbify", "kumbify")),
+            ("git@github-helciobusiness:af979031-cloud/kumbify.git", ("af979031-cloud/kumbify", "kumbify")),
+            ("af979031-cloud/kumbify", ("af979031-cloud/kumbify", "kumbify")),
+        ]
+        for url, expected in test_cases:
+            self.assertEqual(parse_github_repo(url), expected)
+
+        with self.assertRaises(ValueError):
+            parse_github_repo("")
+
+    def test_resolve_clone_destination(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            base = Path(tmp_dir)
+            # 1. Empty input defaults to base / repo_name
+            self.assertEqual(
+                resolve_clone_destination("", "kumbify", base_dir=base),
+                base / "kumbify",
+            )
+            # 2. Existing folder appends repo_name
+            existing_sub = base / "projects"
+            existing_sub.mkdir()
+            self.assertEqual(
+                resolve_clone_destination(str(existing_sub), "kumbify", base_dir=base),
+                existing_sub / "kumbify",
+            )
+            # 3. Explicit target path is preserved
+            explicit_target = base / "custom_folder"
+            self.assertEqual(
+                resolve_clone_destination(str(explicit_target), "kumbify", base_dir=base),
+                explicit_target,
+            )
+
+    def test_run_git_clone_dry_run(self) -> None:
+        dest = Path("/mock/dest")
+        ok, msg = run_git_clone("git@github-test:user/repo.git", dest, dry_run=True)
+        self.assertTrue(ok)
+        self.assertIn("[DRY RUN]", msg)
+
+    @patch("subprocess.run")
+    def test_run_git_clone_success(self, mock_run: MagicMock) -> None:
+        mock_run.return_value.returncode = 0
+        mock_run.return_value.stdout = ""
+        mock_run.return_value.stderr = "Cloning into 'kumbify'..."
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            dest = Path(tmp_dir) / "kumbify"
+            ok, msg = run_git_clone("git@github-helciobusiness:af979031-cloud/kumbify.git", dest)
+            self.assertTrue(ok)
+            self.assertIn("Cloning into", msg)
+
+    @patch("subprocess.run")
+    def test_configure_repo_identity(self, mock_run: MagicMock) -> None:
+        mock_run.return_value.returncode = 0
+        repo_dir = Path("/mock/repo")
+        ok, msg = configure_repo_identity(repo_dir, name="Helcio", email="helcio@example.com")
+        self.assertTrue(ok)
+        self.assertEqual(mock_run.call_count, 2)
 
 
 if __name__ == "__main__":
